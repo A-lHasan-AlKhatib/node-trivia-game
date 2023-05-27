@@ -29,8 +29,53 @@ socket.on('join', ({ playerName, room }, callback) => {
     socket.join(newPlayer.room);
 
     socket.emit('message', formatMessage('Admin', 'Welcome!'));
-    });
-})
+    socket.broadcast
+      .to(newPlayer.room)
+      .emit(
+        'message',
+        formatMessage('Admin', `${newPlayer.playerName} has joined the game!`)
+      );
+    // Emit a "room" event to all players to update their Game Info sections
+    io.in(newPlayer.room).emit('room', {
+        room: newPlayer.room,
+        players: getAllPlayers(newPlayer.room),
+      });
+
+  }); 
+  socket.on("disconnect", () => {
+    console.log("A player disconnected.");
+  
+    const disconnectedPlayer = removePlayer(socket.id);
+  
+    if (disconnectedPlayer) {
+      const { playerName, room } = disconnectedPlayer;
+      io.in(room).emit(
+        "message",
+        formatMessage("Admin", `${playerName} has left!`)
+      );
+  
+      io.in(room).emit("room", {
+        room,
+        players: getAllPlayers(room),
+      });
+    }
+  });
+
+  socket.on("sendMessage", (message, callback) => {
+    const { error, player } = getPlayer(socket.id);
+  
+    if (error) return callback(error.message);
+  
+    if (player) {
+      io.to(player.room).emit(
+        "message",
+        formatMessage(player.playerName, message)
+      );
+      callback(); // invoke the callback to trigger event acknowledgment
+    }
+  });
+});
+
 
 server.listen(port, () => {
   console.log(`Server is up on port ${port}.`);
